@@ -1,0 +1,37 @@
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <EditText
+        android:id="@+id/edtEspIp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Enter ESP8266 IP"
+        android:inputType="textUri"
+        android:padding="10dp"
+        tools:ignore="TouchTargetSizeCheck" />
+
+    <Button
+        android:id="@+id/btnStartStop"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Start" />
+
+    <TextView
+        android:id="@+id/txtCommand"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Command will appear here"
+        android:padding="10dp" />
+
+    <TextView
+        android:id="@+id/txtResponse"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="ESP8266 response"
+        android:padding="10dp" />
+</LinearLayout>
