@@ -14,6 +14,7 @@ const bool RELAY_ACTIVE_LOW = true;
 const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000;
 const unsigned long WIFI_RETRY_DELAY_MS = 5000;
 const unsigned long WIFI_CONNECT_POLL_DELAY_MS = 250;
+const unsigned long SERIAL_INIT_DELAY_MS = 200;
 
 struct Device {
   const char *name;
@@ -30,8 +31,7 @@ const size_t DEVICE_COUNT = sizeof(devices) / sizeof(devices[0]);
 ESP8266WebServer server(80);
 unsigned long lastReconnectAttempt = 0;
 
-String urlDecode(const String &input) {
-  String output;
+bool urlDecode(const String &input, String &output) {
   output.reserve(input.length());
 
   for (size_t i = 0; i < input.length(); i++) {
@@ -46,15 +46,21 @@ String urlDecode(const String &input) {
         isxdigit(static_cast<unsigned char>(input[i + 2]))) {
       char hex[3] = {input[i + 1], input[i + 2], '\0'};
       char decoded = static_cast<char>(strtol(hex, nullptr, 16));
-      output += isPrintable(decoded) ? decoded : '?';
+      if (!isPrintable(decoded)) {
+        return false;
+      }
+      output += decoded;
       i += 2;
       continue;
     }
 
+    if (!isPrintable(c)) {
+      return false;
+    }
     output += c;
   }
 
-  return output;
+  return true;
 }
 
 bool containsAny(const String &text, const char *const *keywords, size_t count) {
@@ -68,20 +74,22 @@ bool containsAny(const String &text, const char *const *keywords, size_t count) 
 
 bool isWordChar(char ch) {
   unsigned char uch = static_cast<unsigned char>(ch);
-  return isAscii(uch) && isalnum(uch);
+  return uch <= 127 && isalnum(uch);
 }
 
 bool containsWord(const String &text, const String &word) {
   int index = text.indexOf(word);
+  int textLength = static_cast<int>(text.length());
+  int wordLength = static_cast<int>(word.length());
   while (index >= 0) {
     int before = index - 1;
-    int after = index + word.length();
+    int after = index + wordLength;
     bool beforeOk = before < 0 || !isWordChar(text[before]);
-    bool afterOk = after >= text.length() || !isWordChar(text[after]);
+    bool afterOk = after >= textLength || !isWordChar(text[after]);
     if (beforeOk && afterOk) {
       return true;
     }
-    index = text.indexOf(word, index + word.length());
+    index = text.indexOf(word, index + wordLength);
   }
   return false;
 }
@@ -146,7 +154,11 @@ void handleCommand() {
     return;
   }
 
-  String command = urlDecode(server.arg("text"));
+  String command;
+  if (!urlDecode(server.arg("text"), command)) {
+    server.send(400, "text/plain", "Command contains invalid characters.");
+    return;
+  }
   command.trim();
   command.toLowerCase();
 
@@ -224,7 +236,7 @@ bool connectWiFiOnce() {
 
 void setup() {
   Serial.begin(115200);
-  delay(200);
+  delay(SERIAL_INIT_DELAY_MS);
 
   setupDevices();
 
