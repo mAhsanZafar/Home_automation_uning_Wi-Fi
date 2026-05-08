@@ -50,7 +50,7 @@ Examples (case‑insensitive):
 
 The ESP8266 responds with a short text message, which the app will display and read aloud.
 
-> If you set `API_KEY`, append `&key=YOUR_KEY` to requests (or keep it empty for the current Android app).
+> If you set `API_KEY`, use `?key=YOUR_KEY` on `/status` and `&key=YOUR_KEY` on `/command?text=...` (or keep it empty for the current Android app).
 
 ## Troubleshooting
 

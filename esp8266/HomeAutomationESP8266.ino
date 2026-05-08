@@ -26,6 +26,7 @@ Device devices[] = {
 };
 
 ESP8266WebServer server(80);
+unsigned long lastReconnectAttempt = 0;
 
 String urlDecode(const String &input) {
   String output;
@@ -39,7 +40,8 @@ String urlDecode(const String &input) {
     }
 
     if (c == '%' && i + 2 < input.length() &&
-        isxdigit(input[i + 1]) && isxdigit(input[i + 2])) {
+        isxdigit(static_cast<unsigned char>(input[i + 1])) &&
+        isxdigit(static_cast<unsigned char>(input[i + 2]))) {
       char hex[3] = {input[i + 1], input[i + 2], '\0'};
       char decoded = static_cast<char>(strtol(hex, nullptr, 16));
       output += decoded;
@@ -62,13 +64,18 @@ bool containsAny(const String &text, const char *const *keywords, size_t count) 
   return false;
 }
 
+bool isWordChar(char ch) {
+  unsigned char uch = static_cast<unsigned char>(ch);
+  return isAscii(uch) && isalnum(uch);
+}
+
 bool containsWord(const String &text, const String &word) {
   int index = text.indexOf(word);
   while (index >= 0) {
     int before = index - 1;
     int after = index + word.length();
-    bool beforeOk = before < 0 || !isalnum(text[before]);
-    bool afterOk = after >= text.length() || !isalnum(text[after]);
+    bool beforeOk = before < 0 || !isWordChar(text[before]);
+    bool afterOk = after >= text.length() || !isWordChar(text[after]);
     if (beforeOk && afterOk) {
       return true;
     }
@@ -190,7 +197,7 @@ void setupDevices() {
   }
 }
 
-bool connectWiFi() {
+bool connectWiFiOnce() {
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
@@ -209,7 +216,7 @@ bool connectWiFi() {
   }
 
   Serial.println();
-  Serial.println("WiFi connection failed. Retrying...");
+  Serial.println("WiFi connection failed. Will retry.");
   return false;
 }
 
@@ -219,9 +226,8 @@ void setup() {
 
   setupDevices();
 
-  while (!connectWiFi()) {
-    delay(WIFI_RETRY_DELAY_MS);
-  }
+  connectWiFiOnce();
+  lastReconnectAttempt = millis();
 
   server.on("/", handleRoot);
   server.on("/status", handleStatus);
@@ -235,5 +241,10 @@ void setup() {
 }
 
 void loop() {
+  if (WiFi.status() != WL_CONNECTED &&
+      millis() - lastReconnectAttempt >= WIFI_RETRY_DELAY_MS) {
+    lastReconnectAttempt = millis();
+    connectWiFiOnce();
+  }
   server.handleClient();
 }
