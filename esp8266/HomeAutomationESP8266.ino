@@ -11,6 +11,8 @@ const char *API_KEY = "";
 #endif
 
 const bool RELAY_ACTIVE_LOW = true;
+const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000;
+const unsigned long WIFI_RETRY_DELAY_MS = 5000;
 
 struct Device {
   const char *name;
@@ -36,7 +38,8 @@ String urlDecode(const String &input) {
       continue;
     }
 
-    if (c == '%' && i + 2 < input.length()) {
+    if (c == '%' && i + 2 < input.length() &&
+        isxdigit(input[i + 1]) && isxdigit(input[i + 2])) {
       char hex[3] = {input[i + 1], input[i + 2], '\0'};
       char decoded = static_cast<char>(strtol(hex, nullptr, 16));
       output += decoded;
@@ -187,17 +190,13 @@ void setupDevices() {
   }
 }
 
-void setup() {
-  Serial.begin(115200);
-  delay(200);
-
-  setupDevices();
-
+bool connectWiFi() {
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
   unsigned long startAttempt = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - startAttempt < 20000) {
+  while (WiFi.status() != WL_CONNECTED &&
+         millis() - startAttempt < WIFI_CONNECT_TIMEOUT_MS) {
     delay(500);
     Serial.print('.');
   }
@@ -206,9 +205,22 @@ void setup() {
     Serial.println();
     Serial.print("Connected. IP: ");
     Serial.println(WiFi.localIP());
-  } else {
-    Serial.println();
-    Serial.println("WiFi connection failed.");
+    return true;
+  }
+
+  Serial.println();
+  Serial.println("WiFi connection failed. Retrying...");
+  return false;
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(200);
+
+  setupDevices();
+
+  while (!connectWiFi()) {
+    delay(WIFI_RETRY_DELAY_MS);
   }
 
   server.on("/", handleRoot);
