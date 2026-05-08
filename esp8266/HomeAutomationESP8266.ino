@@ -13,6 +13,7 @@ const char *API_KEY = "";
 const bool RELAY_ACTIVE_LOW = true;
 const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000;
 const unsigned long WIFI_RETRY_DELAY_MS = 5000;
+const unsigned long WIFI_CONNECT_POLL_DELAY_MS = 250;
 
 struct Device {
   const char *name;
@@ -24,6 +25,7 @@ Device devices[] = {
   {"light", D1, false},
   {"fan", D2, false},
 };
+const size_t DEVICE_COUNT = sizeof(devices) / sizeof(devices[0]);
 
 ESP8266WebServer server(80);
 unsigned long lastReconnectAttempt = 0;
@@ -44,7 +46,7 @@ String urlDecode(const String &input) {
         isxdigit(static_cast<unsigned char>(input[i + 2]))) {
       char hex[3] = {input[i + 1], input[i + 2], '\0'};
       char decoded = static_cast<char>(strtol(hex, nullptr, 16));
-      output += decoded;
+      output += isPrintable(decoded) ? decoded : '?';
       i += 2;
       continue;
     }
@@ -109,11 +111,11 @@ void setDeviceState(Device &device, bool on) {
 
 String buildStatus() {
   String status;
-  for (size_t i = 0; i < sizeof(devices) / sizeof(devices[0]); i++) {
+  for (size_t i = 0; i < DEVICE_COUNT; i++) {
     status += devices[i].name;
     status += ": ";
     status += devices[i].state ? "on" : "off";
-    if (i + 1 < sizeof(devices) / sizeof(devices[0])) {
+    if (i + 1 < DEVICE_COUNT) {
       status += "\n";
     }
   }
@@ -168,7 +170,7 @@ void handleCommand() {
   }
 
   if (containsWord(command, "all")) {
-    for (size_t i = 0; i < sizeof(devices) / sizeof(devices[0]); i++) {
+    for (size_t i = 0; i < DEVICE_COUNT; i++) {
       setDeviceState(devices[i], turnOn);
     }
     server.send(200, "text/plain", turnOn ? "All devices turned on."
@@ -176,7 +178,7 @@ void handleCommand() {
     return;
   }
 
-  for (size_t i = 0; i < sizeof(devices) / sizeof(devices[0]); i++) {
+  for (size_t i = 0; i < DEVICE_COUNT; i++) {
     if (containsWord(command, devices[i].name)) {
       setDeviceState(devices[i], turnOn);
       String response = String(devices[i].name) + (turnOn ? " turned on."
@@ -191,7 +193,7 @@ void handleCommand() {
 }
 
 void setupDevices() {
-  for (size_t i = 0; i < sizeof(devices) / sizeof(devices[0]); i++) {
+  for (size_t i = 0; i < DEVICE_COUNT; i++) {
     pinMode(devices[i].pin, OUTPUT);
     setDeviceState(devices[i], false);
   }
@@ -204,7 +206,7 @@ bool connectWiFiOnce() {
   unsigned long startAttempt = millis();
   while (WiFi.status() != WL_CONNECTED &&
          millis() - startAttempt < WIFI_CONNECT_TIMEOUT_MS) {
-    delay(500);
+    delay(WIFI_CONNECT_POLL_DELAY_MS);
     Serial.print('.');
   }
 
@@ -246,5 +248,7 @@ void loop() {
     lastReconnectAttempt = millis();
     connectWiFiOnce();
   }
-  server.handleClient();
+  if (WiFi.status() == WL_CONNECTED) {
+    server.handleClient();
+  }
 }
