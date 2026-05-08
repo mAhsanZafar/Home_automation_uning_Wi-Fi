@@ -31,6 +31,14 @@ const size_t DEVICE_COUNT = sizeof(devices) / sizeof(devices[0]);
 ESP8266WebServer server(80);
 unsigned long lastReconnectAttempt = 0;
 
+char normalizeChar(char value) {
+  return (value == '\t' || value == '\n' || value == '\r') ? ' ' : value;
+}
+
+bool isAllowedChar(char value) {
+  return isPrintable(value) || value == '\t' || value == '\n' || value == '\r';
+}
+
 bool urlDecode(const String &input, String &output) {
   output.reserve(input.length());
 
@@ -46,18 +54,18 @@ bool urlDecode(const String &input, String &output) {
         isxdigit(static_cast<unsigned char>(input[i + 2]))) {
       char hex[3] = {input[i + 1], input[i + 2], '\0'};
       char decoded = static_cast<char>(strtol(hex, nullptr, 16));
-      if (!isPrintable(decoded)) {
+      if (!isAllowedChar(decoded)) {
         return false;
       }
-      output += decoded;
+      output += normalizeChar(decoded);
       i += 2;
       continue;
     }
 
-    if (!isPrintable(c)) {
+    if (!isAllowedChar(c)) {
       return false;
     }
-    output += c;
+    output += normalizeChar(c);
   }
 
   return true;
@@ -74,7 +82,7 @@ bool containsAny(const String &text, const char *const *keywords, size_t count) 
 
 bool isWordChar(char ch) {
   unsigned char uch = static_cast<unsigned char>(ch);
-  return uch <= 127 && isalnum(uch);
+  return isalnum(uch);
 }
 
 bool containsWord(const String &text, const String &word) {
