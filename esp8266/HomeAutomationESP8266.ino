@@ -1,8 +1,14 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
+#include <ctype.h>
 
+#if __has_include("config.h")
+#include "config.h"
+#else
 const char *WIFI_SSID = "YOUR_WIFI_SSID";
 const char *WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
+const char *API_KEY = "";
+#endif
 
 const bool RELAY_ACTIVE_LOW = true;
 
@@ -53,14 +59,35 @@ bool containsAny(const String &text, const char *const *keywords, size_t count) 
   return false;
 }
 
+bool containsWord(const String &text, const String &word) {
+  int index = text.indexOf(word);
+  while (index >= 0) {
+    int before = index - 1;
+    int after = index + word.length();
+    bool beforeOk = before < 0 || !isalnum(text[before]);
+    bool afterOk = after >= text.length() || !isalnum(text[after]);
+    if (beforeOk && afterOk) {
+      return true;
+    }
+    index = text.indexOf(word, index + word.length());
+  }
+  return false;
+}
+
 bool wantsOn(const String &text) {
-  const char *keywords[] = {"turn on", "switch on", "on", "start"};
-  return containsAny(text, keywords, sizeof(keywords) / sizeof(keywords[0]));
+  const char *phrases[] = {"turn on", "switch on"};
+  if (containsAny(text, phrases, sizeof(phrases) / sizeof(phrases[0]))) {
+    return true;
+  }
+  return containsWord(text, "on") || containsWord(text, "start");
 }
 
 bool wantsOff(const String &text) {
-  const char *keywords[] = {"turn off", "switch off", "off", "stop"};
-  return containsAny(text, keywords, sizeof(keywords) / sizeof(keywords[0]));
+  const char *phrases[] = {"turn off", "switch off"};
+  if (containsAny(text, phrases, sizeof(phrases) / sizeof(phrases[0]))) {
+    return true;
+  }
+  return containsWord(text, "off") || containsWord(text, "stop");
 }
 
 void setDeviceState(Device &device, bool on) {
@@ -90,10 +117,18 @@ void handleRoot() {
 }
 
 void handleStatus() {
+  if (strlen(API_KEY) > 0 && server.arg("key") != API_KEY) {
+    server.send(401, "text/plain", "Unauthorized.");
+    return;
+  }
   server.send(200, "text/plain", buildStatus());
 }
 
 void handleCommand() {
+  if (strlen(API_KEY) > 0 && server.arg("key") != API_KEY) {
+    server.send(401, "text/plain", "Unauthorized.");
+    return;
+  }
   if (!server.hasArg("text")) {
     server.send(400, "text/plain", "Missing 'text' query parameter.");
     return;
@@ -108,7 +143,7 @@ void handleCommand() {
     return;
   }
 
-  if (command.indexOf("status") >= 0 || command.indexOf("state") >= 0) {
+  if (containsWord(command, "status") || containsWord(command, "state")) {
     server.send(200, "text/plain", buildStatus());
     return;
   }
@@ -117,12 +152,12 @@ void handleCommand() {
   bool turnOff = wantsOff(command);
 
   if (!turnOn && !turnOff) {
-    server.send(200, "text/plain",
+    server.send(400, "text/plain",
                 "Please say on/off. Example: light on, fan off, all on.");
     return;
   }
 
-  if (command.indexOf("all") >= 0) {
+  if (containsWord(command, "all")) {
     for (size_t i = 0; i < sizeof(devices) / sizeof(devices[0]); i++) {
       setDeviceState(devices[i], turnOn);
     }
@@ -132,7 +167,7 @@ void handleCommand() {
   }
 
   for (size_t i = 0; i < sizeof(devices) / sizeof(devices[0]); i++) {
-    if (command.indexOf(devices[i].name) >= 0) {
+    if (containsWord(command, devices[i].name)) {
       setDeviceState(devices[i], turnOn);
       String response = String(devices[i].name) + (turnOn ? " turned on."
                                                           : " turned off.");
@@ -141,7 +176,7 @@ void handleCommand() {
     }
   }
 
-  server.send(200, "text/plain",
+  server.send(400, "text/plain",
               "Unknown device. Try: light on, fan off, all on.");
 }
 

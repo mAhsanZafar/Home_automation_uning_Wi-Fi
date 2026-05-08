@@ -11,20 +11,21 @@ This project pairs an Android voice‑control app with an ESP8266 web server. Th
 
 1. Open `esp8266/HomeAutomationESP8266.ino` in the Arduino IDE.
 2. Install the ESP8266 board package in **Tools → Board → Boards Manager**.
-3. Update Wi‑Fi credentials:
+3. Copy `esp8266/config.example.h` to `esp8266/config.h` and update Wi‑Fi credentials:
    ```cpp
    const char *WIFI_SSID = "YOUR_WIFI_SSID";
    const char *WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
    ```
-4. Adjust relay pins if needed:
+4. (Optional) Set an API key in `config.h` to protect `/command` and `/status`.
+5. Adjust relay pins if needed:
    ```cpp
    Device devices[] = {
      {"light", D1, false},
      {"fan", D2, false},
    };
    ```
-5. Flash the sketch to the ESP8266 (NodeMCU, Wemos D1 mini, etc.).
-6. Open Serial Monitor at **115200 baud** to see the assigned IP address.
+6. Flash the sketch to the ESP8266 (NodeMCU, Wemos D1 mini, etc.).
+7. Open Serial Monitor at **115200 baud** to see the assigned IP address.
 
 ### Wiring notes
 
@@ -48,6 +49,8 @@ Examples (case‑insensitive):
 - **Status**: “status”, “state”
 
 The ESP8266 responds with a short text message, which the app will display and read aloud.
+
+> If you set `API_KEY`, append `&key=YOUR_KEY` to requests (or keep it empty for the current Android app).
 
 ## Troubleshooting
 
